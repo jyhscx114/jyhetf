@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="金永昊精选ETF净值：按给定股票权重合成的实时净值与1分钟K线。"
+    />
+    <meta name="theme-color" content="#07100c" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='31' fill='%23d9f99d'/%3E%3Ctext x='32' y='38' text-anchor='middle' font-family='Arial' font-size='15' font-weight='700' fill='%2310170c'%3EJYH%3C/text%3E%3C/svg%3E"
+    />
+    <title>金永昊精选ETF净值</title>
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="金永昊精选ETF净值首页">
+          <span class="brand-mark" aria-hidden="true">
+            <span>JYH</span>
+          </span>
+          <span class="brand-copy">
+            <strong>金永昊精选ETF净值</strong>
+            <small>JIN YONGHAO SELECT · WEIGHTED NAV</small>
+          </span>
+        </a>
+
+        <div class="market-state">
+          <span class="status-dot" id="statusDot" aria-hidden="true"></span>
+          <span id="marketState">正在连接行情</span>
+          <span class="separator" aria-hidden="true"></span>
+          <time id="marketClock">--:--:--</time>
+        </div>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="pageTitle">
+          <div class="hero-copy">
+            <div class="eyebrow">
+              <span>LIVE SYNTHETIC INDEX</span>
+              <span class="eyebrow-rule" aria-hidden="true"></span>
+              <span>2026.11.24</span>
+            </div>
+            <h1 id="pageTitle">
+              一个无聊的ETF，
+              <span>。</span>
+            </h1>
+            <p class="hero-note">
+              以20261124开盘价为 1.0000，将 14 只成分股的实时表现按给定权重合成为一条净值曲线。
+            </p>
+          </div>
+
+          <div class="nav-panel" aria-live="polite">
+            <div class="nav-panel-head">
+              <span>当前合成净值</span>
+              <span class="live-pill" id="livePill">
+                <i aria-hidden="true"></i>
+                <span id="liveLabel">实时</span>
+              </span>
+            </div>
+            <div class="nav-value-row">
+              <strong id="navValue" class="tabular">—</strong>
+              <span class="return-chip" id="returnChip">—</span>
+            </div>
+            <div class="nav-caption">相对 2026.11.24 开盘</div>
+            <div class="nav-stats">
+              <div>
+                <span>今日开盘</span>
+                <strong>1.0000</strong>
+              </div>
+              <div>
+                <span>日内最高</span>
+                <strong id="dayHigh">—</strong>
+              </div>
+              <div>
+                <span>日内最低</span>
+                <strong id="dayLow">—</strong>
+              </div>
+              <div>
+                <span>加权成交额</span>
+                <strong id="turnover">—</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="dashboard" aria-label="净值行情面板">
+          <article class="chart-card">
+            <div class="card-heading chart-heading">
+              <div>
+                <div class="section-kicker">REALTIME K-LINE</div>
+                <h2>今日实时 K 线</h2>
+              </div>
+              <div class="chart-controls" role="group" aria-label="K线周期">
+                <button
+                  type="button"
+                  class="period-button is-active"
+                  data-period="1"
+                  aria-pressed="true"
+                >
+                  1分
+                </button>
+                <button type="button" class="period-button" data-period="5" aria-pressed="false">
+                  5分
+                </button>
+                <button type="button" class="period-button" data-period="15" aria-pressed="false">
+                  15分
+                </button>
+              </div>
+            </div>
+
+            <div class="chart-meta">
+              <div class="chart-legend">
+                <span><i class="legend-up" aria-hidden="true"></i>上涨</span>
+                <span><i class="legend-down" aria-hidden="true"></i>下跌</span>
+                <span><i class="legend-ma5" aria-hidden="true"></i>MA5</span>
+                <span><i class="legend-ma10" aria-hidden="true"></i>MA10</span>
+              </div>
+              <span id="lastUpdated">等待首笔行情</span>
+            </div>
+
+            <div class="chart-stage">
+              <div
+                id="chart"
+                class="chart"
+                role="img"
+                aria-label="金永昊精选ETF今日1分钟K线图"
+              ></div>
+              <div class="chart-loading" id="chartLoading" aria-live="polite">
+                <span class="loader" aria-hidden="true"></span>
+                <span>正在合成 14 只成分股行情</span>
+              </div>
+              <div class="chart-error" id="chartError" hidden>
+                <strong>行情加载失败</strong>
+                <span id="chartErrorMessage"></span>
+                <button type="button" id="retryButton">重新加载</button>
+              </div>
+            </div>
+
+            <div class="chart-foot">
+              <span>1 分钟 OHLC · 10 秒刷新</span>
+              <span id="dataCoverage">0 / 14</span>
+            </div>
+          </article>
+
+          <aside class="insight-card">
+            <div class="card-heading">
+              <div>
+                <div class="section-kicker">PORTFOLIO PULSE</div>
+                <h2>组合脉搏</h2>
+              </div>
+              <span class="holding-count">14 持仓</span>
+            </div>
+
+            <div class="breadth-block">
+              <div class="breadth-head">
+                <span>上涨 / 下跌</span>
+                <strong id="breadthText">—</strong>
+              </div>
+              <div
+                class="breadth-bar"
+                id="breadthBar"
+                role="progressbar"
+                aria-label="成分股上涨占比"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="0"
+              >
+                <span id="breadthFill"></span>
+              </div>
+            </div>
+
+            <div class="weight-block">
+              <div class="block-title">
+                <span>权重结构</span>
+                <span>100%</span>
+              </div>
+              <div class="weight-strip" id="weightStrip" aria-hidden="true"></div>
+              <div class="weight-caption">单票最高 17.5% · 前三大合计 52.5%</div>
+            </div>
+
+            <div class="contribution-block">
+              <div class="block-title">
+                <span>今日贡献</span>
+                <span>相对开盘</span>
+              </div>
+              <div id="contributionList" class="contribution-list">
+                <div class="mini-skeleton"></div>
+                <div class="mini-skeleton"></div>
+                <div class="mini-skeleton"></div>
+                <div class="mini-skeleton"></div>
+              </div>
+            </div>
+          </aside>
+        </section>
+
+        <section class="holdings-section" aria-labelledby="holdingsTitle">
+          <div class="holdings-heading">
+            <div>
+              <div class="section-kicker">CONSTITUENTS</div>
+              <h2 id="holdingsTitle">成分股表现</h2>
+            </div>
+            <p>涨跌均以各成分股今日开盘价为基准</p>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <caption class="sr-only">
+                14 只成分股的现价、相对开盘涨跌、权重和净值贡献
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">成分股</th>
+                  <th scope="col">赛道</th>
+                  <th scope="col" class="number">现价</th>
+                  <th scope="col" class="number">相对开盘</th>
+                  <th scope="col" class="number">权重</th>
+                  <th scope="col" class="number">净值贡献</th>
+                </tr>
+              </thead>
+              <tbody id="holdingsBody">
+                <tr class="table-loading">
+                  <td colspan="6"><span class="loader loader-small"></span> 正在读取行情</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="method-strip" aria-label="计算说明">
+          <div>
+            <span class="method-index">01</span>
+            <p><strong>开盘归一</strong>每只股票以今日首笔开盘价记为 1。</p>
+          </div>
+          <div>
+            <span class="method-index">02</span>
+            <p><strong>权重合成</strong>按表格比重加权，合计 100%。</p>
+          </div>
+          <div>
+            <span class="method-index">03</span>
+            <p><strong>实时更新</strong>分时 K 线与报价每 10 秒刷新。</p>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <p>
+          行情来源：新浪财经 1 分钟 K 线、腾讯证券实时报价。合成净值仅用于观察，不构成基金净值、投资建议或交易依据。
+        </p>
+        <p>日期口径 2026.11.24 · 开盘基准 09:30</p>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
