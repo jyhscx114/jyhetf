@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="金永昊精选ETF净值：按给定股票权重合成的实时净值与1分钟K线。"
+      content="金永昊精选ETF净值：按给定股票权重合成的实时净值、日内折线与前30个交易日K线。"
     />
     <meta name="theme-color" content="#07100c" />
     <link
@@ -89,60 +89,98 @@
 
         <section class="dashboard" aria-label="净值行情面板">
           <article class="chart-card">
-            <div class="card-heading chart-heading">
-              <div>
-                <div class="section-kicker">REALTIME K-LINE</div>
-                <h2>今日实时 K 线</h2>
+            <div class="chart-block">
+              <div class="card-heading chart-heading">
+                <div>
+                  <div class="section-kicker">INTRADAY CURVE</div>
+                  <h2>今日日内净值走势</h2>
+                </div>
+                <div class="chart-controls" role="group" aria-label="日内折线周期">
+                  <button
+                    type="button"
+                    class="period-button is-active"
+                    data-period="1"
+                    aria-pressed="true"
+                  >
+                    1分
+                  </button>
+                  <button type="button" class="period-button" data-period="5" aria-pressed="false">
+                    5分
+                  </button>
+                  <button type="button" class="period-button" data-period="15" aria-pressed="false">
+                    15分
+                  </button>
+                </div>
               </div>
-              <div class="chart-controls" role="group" aria-label="K线周期">
-                <button
-                  type="button"
-                  class="period-button is-active"
-                  data-period="1"
-                  aria-pressed="true"
-                >
-                  1分
-                </button>
-                <button type="button" class="period-button" data-period="5" aria-pressed="false">
-                  5分
-                </button>
-                <button type="button" class="period-button" data-period="15" aria-pressed="false">
-                  15分
-                </button>
+
+              <div class="chart-meta">
+                <div class="chart-legend">
+                  <span><i class="legend-line" aria-hidden="true"></i>日内净值</span>
+                  <span><i class="legend-baseline" aria-hidden="true"></i>开盘 1.0000</span>
+                  <span><i class="legend-current" aria-hidden="true"></i>当前位置</span>
+                </div>
+                <span id="lastUpdated">等待首笔行情</span>
+              </div>
+
+              <div class="chart-stage intraday-stage">
+                <div
+                  id="intradayChart"
+                  class="chart"
+                  role="img"
+                  aria-label="金永昊精选ETF今日日内净值折线图"
+                ></div>
+                <div class="chart-loading" id="chartLoading" aria-live="polite">
+                  <span class="loader" aria-hidden="true"></span>
+                  <span>正在合成 14 只成分股的日内与日 K 行情</span>
+                </div>
+                <div class="chart-error" id="chartError" hidden>
+                  <strong>行情加载失败</strong>
+                  <span id="chartErrorMessage"></span>
+                  <button type="button" id="retryButton">重新加载</button>
+                </div>
+              </div>
+
+              <div class="chart-foot">
+                <span>日内折线 · 10 秒刷新</span>
+                <span id="dataCoverage">0 / 14</span>
               </div>
             </div>
 
-            <div class="chart-meta">
-              <div class="chart-legend">
-                <span><i class="legend-up" aria-hidden="true"></i>上涨</span>
-                <span><i class="legend-down" aria-hidden="true"></i>下跌</span>
-                <span><i class="legend-ma5" aria-hidden="true"></i>MA5</span>
-                <span><i class="legend-ma10" aria-hidden="true"></i>MA10</span>
+            <div class="chart-block">
+              <div class="card-heading chart-heading">
+                <div>
+                  <div class="section-kicker">30D HISTORY</div>
+                  <h2>前 30 个交易日 K 线</h2>
+                </div>
+                <div class="chart-current">
+                  <span>当前位置 · 2026.11.24</span>
+                  <strong id="dailyCurrentNav">—</strong>
+                </div>
               </div>
-              <span id="lastUpdated">等待首笔行情</span>
-            </div>
 
-            <div class="chart-stage">
-              <div
-                id="chart"
-                class="chart"
-                role="img"
-                aria-label="金永昊精选ETF今日1分钟K线图"
-              ></div>
-              <div class="chart-loading" id="chartLoading" aria-live="polite">
-                <span class="loader" aria-hidden="true"></span>
-                <span>正在合成 14 只成分股行情</span>
+              <div class="chart-meta">
+                <div class="chart-legend">
+                  <span><i class="legend-up" aria-hidden="true"></i>上涨</span>
+                  <span><i class="legend-down" aria-hidden="true"></i>下跌</span>
+                  <span><i class="legend-ma5" aria-hidden="true"></i>MA5</span>
+                  <span><i class="legend-ma10" aria-hidden="true"></i>MA10</span>
+                </div>
+                <span id="dailyRangeLabel">加载交易日...</span>
               </div>
-              <div class="chart-error" id="chartError" hidden>
-                <strong>行情加载失败</strong>
-                <span id="chartErrorMessage"></span>
-                <button type="button" id="retryButton">重新加载</button>
-              </div>
-            </div>
 
-            <div class="chart-foot">
-              <span>1 分钟 OHLC · 10 秒刷新</span>
-              <span id="dataCoverage">0 / 14</span>
+              <div class="chart-stage daily-stage">
+                <div
+                  id="dailyChart"
+                  class="chart"
+                  role="img"
+                  aria-label="金永昊精选ETF前30个历史交易日至当前日的K线图"
+                ></div>
+              </div>
+
+              <div class="chart-foot">
+                <span>前 30 个交易日 + 当前日</span>
+                <span>当前净值已标注</span>
+              </div>
             </div>
           </article>
 
@@ -241,14 +279,14 @@
           </div>
           <div>
             <span class="method-index">03</span>
-            <p><strong>实时更新</strong>分时 K 线与报价每 10 秒刷新。</p>
+            <p><strong>实时更新</strong>日内折线随报价刷新，当前日 K 同步推进。</p>
           </div>
         </section>
       </main>
 
       <footer>
         <p>
-          行情来源：新浪财经 1 分钟 K 线、腾讯证券实时报价。合成净值仅用于观察，不构成基金净值、投资建议或交易依据。
+          行情来源：新浪财经分钟 K 线、腾讯证券实时报价与日 K 线。合成净值仅用于观察，不构成基金净值、投资建议或交易依据。
         </p>
         <p>日期口径 2026.11.24 · 开盘基准 09:30</p>
       </footer>

@@ -1,21 +1,22 @@
 import { init as initChart, use } from "echarts/core";
-import { BarChart, CandlestickChart, LineChart } from "echarts/charts";
+import { CandlestickChart, LineChart } from "echarts/charts";
 import {
   AxisPointerComponent,
   GridComponent,
   MarkLineComponent,
+  MarkPointComponent,
   TooltipComponent,
 } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import "./style.css";
 
 use([
-  BarChart,
   CandlestickChart,
   LineChart,
   AxisPointerComponent,
   GridComponent,
   MarkLineComponent,
+  MarkPointComponent,
   TooltipComponent,
   CanvasRenderer,
 ]);
@@ -60,10 +61,12 @@ const COLORS = {
 const state = {
   stocks: [],
   candles: [],
+  dailyCandles: [],
   quotes: new Map(),
   snapshot: null,
   period: 1,
   chart: null,
+  dailyChart: null,
   connection: "loading",
   lastQuoteAt: null,
   quoteCoverage: 0,
@@ -83,7 +86,10 @@ const el = {
   dayHigh: document.querySelector("#dayHigh"),
   dayLow: document.querySelector("#dayLow"),
   turnover: document.querySelector("#turnover"),
-  chart: document.querySelector("#chart"),
+  chart: document.querySelector("#intradayChart"),
+  dailyChart: document.querySelector("#dailyChart"),
+  dailyCurrentNav: document.querySelector("#dailyCurrentNav"),
+  dailyRangeLabel: document.querySelector("#dailyRangeLabel"),
   chartLoading: document.querySelector("#chartLoading"),
   chartError: document.querySelector("#chartError"),
   chartErrorMessage: document.querySelector("#chartErrorMessage"),
@@ -286,6 +292,39 @@ function fetchKline(stock) {
   });
 }
 
+async function fetchDailyKline(stock) {
+  const symbol = `${stock.code.startsWith("6") ? "sh" : "sz"}${stock.code}`;
+  const endpoint =
+    "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?" +
+    new URLSearchParams({ param: `${symbol},day,,,100,qfq` });
+  const response = await fetch(endpoint, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) throw new Error(`${stock.name} 日 K 接口返回 ${response.status}`);
+
+  const rows = (await response.json())?.data?.[symbol]?.qfqday;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new Error(`${stock.name} 暂无日 K 行情`);
+  }
+
+  const dailySeries = rows
+    .map((row) => ({
+      date: row[0],
+      open: Number(row[1]),
+      close: Number(row[2]),
+      high: Number(row[3]),
+      low: Number(row[4]),
+    }))
+    .filter((row) => row.date < MARKET_DATE);
+
+  if (dailySeries.length < 30) {
+    throw new Error(`${stock.name} 历史日 K 不足 30 个交易日`);
+  }
+
+  return { ...stock, dailySeries };
+}
+
 async function fetchQuotes() {
   const response = await fetch(quoteBatchUrl(), {
     cache: "no-store",
@@ -324,16 +363,7 @@ function buildCandles(stocks) {
     rows: new Map(stock.series.map((row) => [row.time, row])),
   }));
 
-  const candles = [
-    {
-      time: "09:30",
-      open: 1,
-      close: 1,
-      high: 1,
-      low: 1,
-      amount: 0,
-    },
-  ];
+  const candles = [];
 
   for (const time of times) {
     let open = 0;
@@ -359,7 +389,65 @@ function buildCandles(stocks) {
     }
   }
 
+  if (!candles.some((candle) => candle.time === "09:30")) {
+    candles.unshift({
+      time: "09:30",
+      open: 1,
+      close: 1,
+      high: 1,
+      low: 1,
+      amount: 0,
+    });
+  }
+
   return candles;
+}
+
+function buildDailyCandles(stocks) {
+  const historyDates = [
+    ...new Set(stocks.flatMap((stock) => stock.dailySeries.map((row) => row.date))),
+  ]
+    .filter((date) => date < MARKET_DATE)
+    .sort()
+    .slice(-30);
+  const dailyRows = stocks.map((stock) => ({
+    stock,
+    rows: new Map(stock.dailySeries.map((row) => [row.date, row])),
+  }));
+
+  const history = historyDates.flatMap((date) => {
+    let open = 0;
+    let close = 0;
+    let high = 0;
+    let low = 0;
+    let complete = 0;
+
+    for (const { stock, rows } of dailyRows) {
+      const row = rows.get(date);
+      if (!row) continue;
+      complete += 1;
+      open += stock.weight * (row.open / stock.openPrice);
+      close += stock.weight * (row.close / stock.openPrice);
+      high += stock.weight * (row.high / stock.openPrice);
+      low += stock.weight * (row.low / stock.openPrice);
+    }
+
+    return complete === stocks.length ? [{ date, open, close, high, low }] : [];
+  });
+
+  const today = state.candles;
+  if (today.length === 0) return history;
+
+  return [
+    ...history,
+    {
+      date: MARKET_DATE,
+      open: 1,
+      close: today.at(-1).close,
+      high: Math.max(...today.map((candle) => candle.high)),
+      low: Math.min(...today.map((candle) => candle.low)),
+    },
+  ];
 }
 
 function getSnapshot() {
@@ -563,18 +651,18 @@ function renderHoldings(snapshot) {
     .join("");
 }
 
-function tooltipMarkup(index, candles) {
+function intradayTooltipMarkup(index, candles) {
   const candle = candles[index];
   if (!candle) return "";
-  const tone = directionClass(candle.close - candle.open);
+  const tone = directionClass(candle.close - 1);
   return `
     <div class="chart-tooltip">
       <div class="chart-tooltip-time">${MARKET_DATE} ${candle.time}</div>
       <div class="chart-tooltip-grid">
-        <span>开</span><b class="tabular">${candle.open.toFixed(4)}</b>
-        <span>高</span><b class="tabular">${candle.high.toFixed(4)}</b>
-        <span>低</span><b class="tabular">${candle.low.toFixed(4)}</b>
-        <span>收</span><b class="tabular ${tone}">${candle.close.toFixed(4)}</b>
+        <span>净值</span><b class="tabular ${tone}">${candle.close.toFixed(4)}</b>
+        <span>相对开盘</span><b class="tabular ${tone}">${signedPercent(candle.close - 1)}</b>
+        <span>区间高</span><b class="tabular">${candle.high.toFixed(4)}</b>
+        <span>区间低</span><b class="tabular">${candle.low.toFixed(4)}</b>
         <span>成交额</span><b class="tabular">${formatMoney(candle.amount)}</b>
       </div>
     </div>
@@ -586,102 +674,191 @@ function renderChart() {
 
   const candles = aggregateCandles(state.candles, state.period);
   const times = candles.map((candle) => candle.time);
-  const values = candles.map((candle) => [
-    candle.open,
-    candle.close,
-    candle.low,
-    candle.high,
-  ]);
-  const amounts = candles.map((candle) => candle.amount);
-  const ma5 = movingAverage(candles, 5);
-  const ma10 = movingAverage(candles, 10);
+  const values = candles.map((candle) => candle.close);
   const latest = candles.at(-1).close;
 
   state.chart.setOption(
     {
       animation: false,
       backgroundColor: "transparent",
-      axisPointer: {
-        link: [{ xAxisIndex: "all" }],
-        label: { backgroundColor: "#cad8cb", color: "#101712" },
+      tooltip: {
+        trigger: "axis",
+        axisPointer: {
+          type: "line",
+          lineStyle: { color: "rgba(244,243,236,.28)", type: "dashed" },
+        },
+        borderWidth: 0,
+        backgroundColor: "transparent",
+        shadowBlur: 0,
+        formatter: (params) => intradayTooltipMarkup(params[0]?.dataIndex ?? 0, candles),
       },
+      grid: { left: 10, right: 66, top: 34, bottom: 30 },
+      xAxis: {
+        type: "category",
+        data: times,
+        boundaryGap: false,
+        axisLine: { lineStyle: { color: COLORS.axis } },
+        axisTick: { show: false },
+        axisLabel: {
+          color: COLORS.muted,
+          fontSize: 11,
+          margin: 12,
+          interval: (_, value) => {
+            const [hour, minute] = value.split(":").map(Number);
+            return (hour === 9 && minute === 30) ||
+              minute === 0 ||
+              value === "11:30" ||
+              value === "15:00";
+          },
+        },
+      },
+      yAxis: {
+        scale: true,
+        position: "right",
+        splitNumber: 5,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: {
+          color: COLORS.muted,
+          fontSize: 11,
+          formatter: (value) => value.toFixed(4),
+          margin: 10,
+        },
+        splitLine: { lineStyle: { color: COLORS.grid, type: "dashed" } },
+      },
+      series: [{
+        name: "日内净值",
+        type: "line",
+        data: values,
+        showSymbol: false,
+        smooth: 0.18,
+        lineStyle: { color: COLORS.gold, width: 2 },
+        areaStyle: { color: "rgba(217, 249, 157, 0.07)" },
+        markLine: {
+          silent: true,
+          symbol: "none",
+          label: {
+            color: COLORS.muted,
+            fontSize: 10,
+            position: "insideEndTop",
+          },
+          data: [
+            {
+              yAxis: 1,
+              label: { formatter: "开盘 1.0000" },
+              lineStyle: { color: "rgba(244,243,236,.22)", type: "dashed", width: 1 },
+            },
+            {
+              yAxis: latest,
+              label: { formatter: `当前 ${latest.toFixed(4)}` },
+              lineStyle: { color: "rgba(217,249,157,.4)", type: "dashed", width: 1 },
+            },
+          ],
+        },
+        markPoint: {
+          symbol: "circle",
+          symbolSize: 8,
+          data: [{ coord: [times.at(-1), latest] }],
+          itemStyle: { color: COLORS.up, borderColor: "#0c1510", borderWidth: 2 },
+          label: {
+            show: true,
+            formatter: `净值 ${latest.toFixed(4)}`,
+            position: "top",
+            color: COLORS.text,
+            fontSize: 10,
+          },
+        },
+      }],
+    },
+    { notMerge: true, lazyUpdate: true },
+  );
+
+  el.chart.setAttribute(
+    "aria-label",
+    `${MARKET_DATE} 金永昊精选ETF净值${state.period}分钟日内折线。当前净值${latest.toFixed(
+      4,
+    )}，开盘基准1.0000。`,
+  );
+}
+
+function dailyTooltipMarkup(index, candles) {
+  const candle = candles[index];
+  if (!candle) return "";
+  const tone = directionClass(candle.close - candle.open);
+  return `
+    <div class="chart-tooltip">
+      <div class="chart-tooltip-time">${candle.date}${candle.date === MARKET_DATE ? " · 当前" : ""}</div>
+      <div class="chart-tooltip-grid">
+        <span>开</span><b class="tabular">${candle.open.toFixed(4)}</b>
+        <span>高</span><b class="tabular">${candle.high.toFixed(4)}</b>
+        <span>低</span><b class="tabular">${candle.low.toFixed(4)}</b>
+        <span>收</span><b class="tabular ${tone}">${candle.close.toFixed(4)}</b>
+        <span>相对开盘</span><b class="tabular ${directionClass(candle.close - 1)}">${signedPercent(candle.close - 1)}</b>
+      </div>
+    </div>
+  `;
+}
+
+function renderDailyChart() {
+  if (!state.dailyChart || state.dailyCandles.length === 0) return;
+
+  const candles = state.dailyCandles;
+  const dates = candles.map((candle) => candle.date);
+  const values = candles.map((candle) => [
+    candle.open,
+    candle.close,
+    candle.low,
+    candle.high,
+  ]);
+  const ma5 = movingAverage(candles, 5);
+  const ma10 = movingAverage(candles, 10);
+  const current = candles.at(-1);
+
+  state.dailyChart.setOption(
+    {
+      animation: false,
+      backgroundColor: "transparent",
       tooltip: {
         trigger: "axis",
         axisPointer: { type: "cross" },
         borderWidth: 0,
         backgroundColor: "transparent",
         shadowBlur: 0,
-        formatter: (params) => tooltipMarkup(params[0]?.dataIndex ?? 0, candles),
+        formatter: (params) => dailyTooltipMarkup(params[0]?.dataIndex ?? 0, candles),
       },
-      grid: [
-        { left: 10, right: 62, top: 20, height: "66%" },
-        { left: 10, right: 62, top: "79%", height: "13%" },
-      ],
-      xAxis: [
-        {
-          type: "category",
-          data: times,
-          boundaryGap: true,
-          axisLine: { lineStyle: { color: COLORS.axis } },
-          axisTick: { show: false },
-          axisLabel: {
-            color: COLORS.muted,
-            fontSize: 11,
-            margin: 12,
-            interval: (_, value) => {
-              const [hour, minute] = value.split(":").map(Number);
-              return (hour === 9 && minute === 30) ||
-                (minute === 0 && hour < 15) ||
-                value === "11:30" ||
-                value === "13:00" ||
-                value === "15:00";
-            },
-          },
-          axisPointer: {
-            lineStyle: { color: "rgba(244,243,236,.28)", type: "dashed" },
-          },
+      grid: { left: 10, right: 78, top: 34, bottom: 34 },
+      xAxis: {
+        type: "category",
+        data: dates,
+        boundaryGap: true,
+        axisLine: { lineStyle: { color: COLORS.axis } },
+        axisTick: { show: false },
+        axisLabel: {
+          color: COLORS.muted,
+          fontSize: 10,
+          margin: 13,
+          interval: (index) => index === dates.length - 1 || index % 5 === 0,
+          formatter: (value, index) =>
+            index === dates.length - 1 ? `${value.slice(5)}\n当前` : value.slice(5),
         },
-        {
-          type: "category",
-          gridIndex: 1,
-          data: times,
-          boundaryGap: true,
-          axisLine: { lineStyle: { color: COLORS.axis } },
-          axisTick: { show: false },
-          axisLabel: { show: false },
-          axisPointer: {
-            lineStyle: { color: "rgba(244,243,236,.2)", type: "dashed" },
-          },
+      },
+      yAxis: {
+        scale: true,
+        position: "right",
+        splitNumber: 5,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: {
+          color: COLORS.muted,
+          fontSize: 11,
+          formatter: (value) => value.toFixed(4),
+          margin: 12,
         },
-      ],
-      yAxis: [
-        {
-          scale: true,
-          position: "right",
-          splitNumber: 5,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          axisLabel: {
-            color: COLORS.muted,
-            fontSize: 11,
-            formatter: (value) => value.toFixed(3),
-            margin: 10,
-          },
-          splitLine: { lineStyle: { color: COLORS.grid, type: "dashed" } },
-        },
-        {
-          gridIndex: 1,
-          scale: true,
-          position: "right",
-          axisLine: { show: false },
-          axisTick: { show: false },
-          axisLabel: { show: false },
-          splitLine: { show: false },
-        },
-      ],
+        splitLine: { lineStyle: { color: COLORS.grid, type: "dashed" } },
+      },
       series: [
         {
-          name: "净值",
+          name: "合成日 K",
           type: "candlestick",
           data: values,
           itemStyle: {
@@ -694,60 +871,68 @@ function renderChart() {
           markLine: {
             silent: true,
             symbol: "none",
+            data: [
+              {
+                yAxis: 1,
+                label: {
+                  formatter: "基准 1.0000",
+                  position: "insideStartTop",
+                  color: COLORS.muted,
+                  fontSize: 10,
+                },
+                lineStyle: { color: "rgba(244,243,236,.22)", type: "dashed", width: 1 },
+              },
+              {
+                xAxis: MARKET_DATE,
+                label: {
+                  show: false,
+                },
+                lineStyle: { color: "rgba(217,249,157,.35)", type: "dashed", width: 1 },
+              },
+            ],
+          },
+          markPoint: {
+            symbol: "circle",
+            symbolSize: 8,
+            data: [{ coord: [MARKET_DATE, current.close] }],
+            itemStyle: { color: COLORS.up, borderColor: "#0c1510", borderWidth: 2 },
             label: {
-              color: COLORS.muted,
+              show: true,
+              formatter: `当前 ${current.close.toFixed(4)}`,
+              position: "top",
+              color: COLORS.lime,
               fontSize: 10,
-              formatter: ({ value }) => Number(value).toFixed(4),
-              position: "insideEndTop",
             },
-            lineStyle: { color: "rgba(244,243,236,.22)", type: "dashed", width: 1 },
-            data: [{ yAxis: 1 }, { yAxis: latest }],
           },
         },
         {
           name: "MA5",
           type: "line",
           data: ma5,
-          connectNulls: false,
           symbol: "none",
-          smooth: 0.18,
+          smooth: 0.16,
           lineStyle: { color: COLORS.ma5, width: 1.2 },
         },
         {
           name: "MA10",
           type: "line",
           data: ma10,
-          connectNulls: false,
           symbol: "none",
-          smooth: 0.18,
+          smooth: 0.16,
           lineStyle: { color: COLORS.ma10, width: 1.2 },
-        },
-        {
-          name: "加权成交额",
-          type: "bar",
-          xAxisIndex: 1,
-          yAxisIndex: 1,
-          data: amounts.map((amount, index) => ({
-            value: amount,
-            itemStyle: {
-              color:
-                candles[index].close >= candles[index].open
-                  ? "rgba(255,102,120,.5)"
-                  : "rgba(53,214,160,.5)",
-            },
-          })),
-          barMaxWidth: 5,
         },
       ],
     },
     { notMerge: true, lazyUpdate: true },
   );
 
-  el.chart.setAttribute(
+  el.dailyCurrentNav.textContent = current.close.toFixed(4);
+  el.dailyRangeLabel.textContent = `${candles[0].date} → ${MARKET_DATE}`;
+  el.dailyChart.setAttribute(
     "aria-label",
-    `${MARKET_DATE} 金永昊精选ETF净值${state.period}分钟K线。当前净值${latest.toFixed(
+    `${candles[0].date} 至 ${MARKET_DATE} 的金永昊精选ETF日K线。当前净值${current.close.toFixed(
       4,
-    )}，开盘基准1.0000。`,
+    )}，已标注当前位置。`,
   );
 }
 
@@ -757,6 +942,7 @@ function renderAll() {
   renderContributions(state.snapshot);
   renderHoldings(state.snapshot);
   renderChart();
+  renderDailyChart();
 
   el.lastUpdated.textContent = state.lastQuoteAt
     ? `更新于 ${new Intl.DateTimeFormat("zh-CN", {
@@ -776,6 +962,13 @@ function applyLiveCandle(nav) {
   last.close = nav;
   last.high = Math.max(last.high, nav);
   last.low = Math.min(last.low, nav);
+
+  const dailyLast = state.dailyCandles.at(-1);
+  if (dailyLast?.date === MARKET_DATE) {
+    dailyLast.close = nav;
+    dailyLast.high = Math.max(dailyLast.high, nav);
+    dailyLast.low = Math.min(dailyLast.low, nav);
+  }
 }
 
 async function refreshQuotes() {
@@ -795,12 +988,30 @@ async function refreshQuotes() {
 }
 
 async function refreshKlines({ initial = false } = {}) {
-  const results = await settleWithConcurrency(STOCKS, 3, fetchKline);
+  const [results, dailyResults] = await Promise.all([
+    settleWithConcurrency(STOCKS, 3, fetchKline),
+    initial
+      ? settleWithConcurrency(STOCKS, 3, fetchDailyKline)
+      : Promise.resolve(null),
+  ]);
   const failed = results.find((result) => result.status === "rejected");
   if (failed) throw failed.reason;
-  const stocks = results.map((result) => result.value);
+
+  const dailyFailed = dailyResults?.find((result) => result.status === "rejected");
+  if (dailyFailed) throw dailyFailed.reason;
+
+  const dailyByCode = dailyResults
+    ? new Map(
+        dailyResults.map((result) => [result.value.code, result.value.dailySeries]),
+      )
+    : new Map(state.stocks.map((stock) => [stock.code, stock.dailySeries]));
+  const stocks = results.map((result) => ({
+    ...result.value,
+    dailySeries: dailyByCode.get(result.value.code),
+  }));
   state.stocks = stocks;
   state.candles = buildCandles(stocks);
+  state.dailyCandles = buildDailyCandles(stocks);
   state.lastKlineAt = Date.now();
   el.chartError.hidden = true;
 
@@ -815,6 +1026,7 @@ async function refreshKlines({ initial = false } = {}) {
     renderContributions(state.snapshot);
     renderHoldings(state.snapshot);
     renderChart();
+    renderDailyChart();
     el.lastUpdated.textContent =
       state.candles.length > 1 ? `K线截至 ${state.candles.at(-1).time}` : "等待分时行情";
     el.dataCoverage.textContent = "K线已就绪 · 等待报价";
@@ -894,12 +1106,17 @@ function setupEvents() {
   el.retryButton.addEventListener("click", initialLoad);
   window.setInterval(updateClock, 1_000);
 
-  const resizeObserver = new ResizeObserver(() => state.chart?.resize());
+  const resizeObserver = new ResizeObserver(() => {
+    state.chart?.resize();
+    state.dailyChart?.resize();
+  });
   resizeObserver.observe(el.chart);
+  resizeObserver.observe(el.dailyChart);
 }
 
 async function init() {
   state.chart = initChart(el.chart, null, { renderer: "canvas" });
+  state.dailyChart = initChart(el.dailyChart, null, { renderer: "canvas" });
   renderWeights();
   setupEvents();
   updateClock();

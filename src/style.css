@@ -416,12 +416,19 @@ h1 span {
   padding: 23px 24px 14px;
 }
 
+.chart-block + .chart-block {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
 .insight-card {
   padding: 23px 23px 20px;
 }
 
 .card-heading {
   align-items: flex-start;
+  gap: 14px;
 }
 
 .card-heading h2,
@@ -497,6 +504,21 @@ h1 span {
   background: var(--down);
 }
 
+.legend-line {
+  height: 2px !important;
+  background: var(--lime);
+}
+
+.legend-baseline {
+  height: 2px !important;
+  background: rgba(244, 243, 236, 0.35);
+}
+
+.legend-current {
+  background: var(--up);
+  border-radius: 50% !important;
+}
+
 .legend-ma5 {
   height: 2px !important;
   background: #f4c76b;
@@ -509,13 +531,27 @@ h1 span {
 
 .chart-stage {
   position: relative;
-  min-height: 492px;
 }
 
 .chart {
   width: 100%;
   min-width: 0;
-  height: 492px;
+}
+
+.intraday-stage {
+  min-height: 360px;
+}
+
+#intradayChart {
+  height: 360px;
+}
+
+.daily-stage {
+  min-height: 410px;
+}
+
+#dailyChart {
+  height: 410px;
 }
 
 .chart-loading,
@@ -585,6 +621,26 @@ h1 span {
   font-family: "Cascadia Mono", "Consolas", monospace;
   font-size: 9px;
   border-top: 1px solid var(--line);
+}
+
+.chart-current {
+  display: grid;
+  gap: 5px;
+  text-align: right;
+}
+
+.chart-current span {
+  color: var(--muted);
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 9px;
+}
+
+.chart-current strong {
+  color: var(--lime);
+  font-family: "Bahnschrift", "Aptos", sans-serif;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
 }
 
 .holding-count {
@@ -1167,6 +1223,7 @@ footer p:last-child {
 
   .chart-heading {
     gap: 10px;
+    flex-wrap: wrap;
   }
 
   .chart-controls {
@@ -1180,6 +1237,7 @@ footer p:last-child {
 
   .chart-meta {
     align-items: flex-start;
+    flex-wrap: wrap;
     gap: 10px;
     line-height: 1.5;
   }
@@ -1189,15 +1247,45 @@ footer p:last-child {
   }
 
   #lastUpdated {
-    text-align: right;
+    flex-basis: 100%;
+    text-align: left;
   }
 
-  .chart-stage {
-    min-height: 410px;
+  #dailyRangeLabel {
+    flex-basis: 100%;
   }
 
-  .chart {
-    height: 410px;
+  .chart-block + .chart-block {
+    margin-top: 22px;
+    padding-top: 20px;
+  }
+
+  .intraday-stage {
+    min-height: 320px;
+  }
+
+  #intradayChart {
+    height: 320px;
+  }
+
+  .daily-stage {
+    min-height: 350px;
+  }
+
+  #dailyChart {
+    height: 350px;
+  }
+
+  .chart-current strong {
+    font-size: 20px;
+  }
+
+  .chart-current {
+    display: flex;
+    flex-basis: 100%;
+    align-items: baseline;
+    justify-content: space-between;
+    text-align: left;
   }
 
   .weight-block {
