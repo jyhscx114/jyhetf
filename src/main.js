@@ -222,20 +222,22 @@ async function settleWithConcurrency(items, limit, worker) {
   return results;
 }
 
-function fetchKline(stock) {
+function requestSinaKline(stock, { prefix, scale, datalen }) {
   return new Promise((resolve, reject) => {
-    const variable = `__jyh_kline_${stock.code}`;
+    const variable = `__jyh_${prefix}_${stock.code}`;
     const params = new URLSearchParams({
       symbol: `${stock.secid.startsWith("1") ? "sh" : "sz"}${stock.code}`,
-      scale: "1",
+      scale,
       ma: "no",
-      datalen: "300",
+      datalen,
     });
     const script = document.createElement("script");
     const timeout = window.setTimeout(() => {
       script.remove();
       window[variable] = undefined;
-      reject(new Error(`${stock.name} 分时行情加载超时`));
+      reject(
+        new Error(`${stock.name} ${prefix === "daily" ? "日 K" : "分时"}行情加载超时`),
+      );
     }, 15_000);
 
     script.async = true;
@@ -249,72 +251,75 @@ function fetchKline(stock) {
       window[variable] = undefined;
 
       if (!Array.isArray(rows) || rows.length === 0) {
-        reject(new Error(`${stock.name} 今日暂无分时行情`));
+        reject(
+          new Error(
+            `${stock.name} ${prefix === "daily" ? "暂无日 K 行情" : "今日暂无分时行情"}`,
+          ),
+        );
         return;
       }
 
-      const series = rows
-        .filter((row) => row.day.startsWith(MARKET_DATE))
-        .map((row) => ({
-          time: row.day.slice(11, 16),
-          open: Number(row.open),
-          close: Number(row.close),
-          high: Number(row.high),
-          low: Number(row.low),
-          amount: Number(row.amount),
-        }));
-
-      if (series.length === 0) {
-        reject(new Error(`${stock.name} 今日暂无分时行情`));
-        return;
-      }
-
-      const openPrice = series[0].open;
-      if (!Number.isFinite(openPrice) || openPrice <= 0) {
-        reject(new Error(`${stock.name} 开盘价无效`));
-        return;
-      }
-
-      resolve({
-        ...stock,
-        openPrice,
-        series,
-        latestKline: series.at(-1),
-      });
+      resolve(rows);
     };
     script.onerror = () => {
       window.clearTimeout(timeout);
       script.remove();
       window[variable] = undefined;
-      reject(new Error(`${stock.name} 分时行情加载失败`));
+      reject(
+        new Error(`${stock.name} ${prefix === "daily" ? "日 K" : "分时"}行情加载失败`),
+      );
     };
     document.head.append(script);
   });
 }
 
-async function fetchDailyKline(stock) {
-  const symbol = `${stock.code.startsWith("6") ? "sh" : "sz"}${stock.code}`;
-  const endpoint =
-    "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?" +
-    new URLSearchParams({ param: `${symbol},day,,,100,qfq` });
-  const response = await fetch(endpoint, {
-    cache: "no-store",
-    signal: AbortSignal.timeout(15_000),
+async function fetchKline(stock) {
+  const rows = await requestSinaKline(stock, {
+    prefix: "intraday",
+    scale: "1",
+    datalen: "300",
   });
-  if (!response.ok) throw new Error(`${stock.name} 日 K 接口返回 ${response.status}`);
+  const series = rows
+    .filter((row) => row.day.startsWith(MARKET_DATE))
+    .map((row) => ({
+      time: row.day.slice(11, 16),
+      open: Number(row.open),
+      close: Number(row.close),
+      high: Number(row.high),
+      low: Number(row.low),
+      amount: Number(row.amount),
+    }));
 
-  const rows = (await response.json())?.data?.[symbol]?.qfqday;
-  if (!Array.isArray(rows) || rows.length === 0) {
-    throw new Error(`${stock.name} 暂无日 K 行情`);
+  if (series.length === 0) {
+    throw new Error(`${stock.name} 今日暂无分时行情`);
   }
 
+  const openPrice = series[0].open;
+  if (!Number.isFinite(openPrice) || openPrice <= 0) {
+    throw new Error(`${stock.name} 开盘价无效`);
+  }
+
+  return {
+    ...stock,
+    openPrice,
+    series,
+    latestKline: series.at(-1),
+  };
+}
+
+async function fetchDailyKline(stock) {
+  const rows = await requestSinaKline(stock, {
+    prefix: "daily",
+    scale: "240",
+    datalen: "100",
+  });
   const dailySeries = rows
     .map((row) => ({
-      date: row[0],
-      open: Number(row[1]),
-      close: Number(row[2]),
-      high: Number(row[3]),
-      low: Number(row[4]),
+      date: row.day.slice(0, 10),
+      open: Number(row.open),
+      close: Number(row.close),
+      high: Number(row.high),
+      low: Number(row.low),
     }))
     .filter((row) => row.date < MARKET_DATE);
 
