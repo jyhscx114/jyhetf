@@ -293,7 +293,7 @@
     </div>
 
     <script id="standalone-redirect">
-      if (location.protocol === "file:") {
+      if (location.protocol === "file:" || location.hostname.endsWith(".github.io")) {
         location.replace("./金永昊精选ETF净值.html");
       }
     </script>
