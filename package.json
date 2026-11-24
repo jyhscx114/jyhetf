@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "vite build",
+    "build": "vite build && node scripts/export-standalone.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
     "echarts": "^6.1.0"
   },
   "devDependencies": {
-    "vite": "^7.2.2"
+    "vite": "^7.2.2",
+    "vite-plugin-singlefile": "^2.3.4"
   }
 }

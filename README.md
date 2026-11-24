@@ -11,6 +11,10 @@
 
 ## 本地运行
 
+最简单的使用方式：双击项目根目录的 `金永昊精选ETF净值.html`。这是已经内联 CSS、JavaScript 和图表的单文件版本，不需要 Node.js，也不需要本地服务器。
+
+开发模式：
+
 ```bash
 npm install
 npm run dev
@@ -21,6 +25,8 @@ npm run dev
 ```bash
 npm run build
 ```
+
+构建完成后会将单文件版本同步到项目根目录，方便直接双击打开。
 
 ## 行情与口径
 
