@@ -21,7 +21,12 @@ use([
   CanvasRenderer,
 ]);
 
-const MARKET_DATE = "2026-11-24";
+const MARKET_DATE = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+}).format(new Date());
 const QUOTE_INTERVAL = 10_000;
 const KLINE_INTERVAL = 30_000;
 
@@ -117,6 +122,15 @@ function getShanghaiParts() {
   }).formatToParts(new Date());
 
   return Object.fromEntries(parts.map((part) => [part.type, part.value]));
+}
+
+function renderMarketDateLabels() {
+  document.querySelectorAll("[data-market-date]").forEach((node) => {
+    node.textContent =
+      node.dataset.marketDate === "compact"
+        ? MARKET_DATE.replaceAll("-", "")
+        : MARKET_DATE.replaceAll("-", ".");
+  });
 }
 
 function getMarketPhase() {
@@ -1122,6 +1136,7 @@ function setupEvents() {
 async function init() {
   state.chart = initChart(el.chart, null, { renderer: "canvas" });
   state.dailyChart = initChart(el.dailyChart, null, { renderer: "canvas" });
+  renderMarketDateLabels();
   renderWeights();
   setupEvents();
   updateClock();
